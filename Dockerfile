@@ -266,6 +266,11 @@ ENV NODE_ENV=production
 COPY seed/ /seed/
 RUN mkdir -p /seed/scripts
 
+# Keep src/ present so runtime bundled-plugin loader treats /app as a source
+# checkout and uses dist/extensions/*/node_modules directly instead of
+# staging deps to an external directory that would be empty on first boot.
+RUN mkdir -p /app/src
+
 # Security hardening: Run as non-root user
 # The node:24-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
