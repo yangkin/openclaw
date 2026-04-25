@@ -260,6 +260,12 @@ RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
 
 ENV NODE_ENV=production
 
+# Copy seed resources for initContainer-based first-time initialization.
+# /seed is read by the initContainer (running as the same image) to populate
+# the instance PVC mounted at /config on first boot.
+COPY seed/ /seed/
+RUN mkdir -p /seed/scripts
+
 # Security hardening: Run as non-root user
 # The node:24-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges

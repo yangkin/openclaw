@@ -1,0 +1,4 @@
+{
+  "name": "healthcheck",
+  "description": "Audit and harden hosts running OpenClaw for SSH, firewall, updates, exposure, cron checks, and risk posture."
+}
