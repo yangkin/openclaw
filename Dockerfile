@@ -121,9 +121,7 @@ RUN printf 'packages:\n  - .\n  - ui\n  - extensions/*\n' > /tmp/pnpm-workspace.
       printf '  - %s/%s\n' "$OPENCLAW_BUNDLED_PLUGIN_DIR" "$ext" >> /tmp/pnpm-workspace.runtime.yaml; \
     done && \
     cp /tmp/pnpm-workspace.runtime.yaml pnpm-workspace.yaml && \
-    CI=true NPM_CONFIG_FROZEN_LOCKFILE=false pnpm prune --prod && \
     OPENCLAW_EAGER_BUNDLED_PLUGIN_DEPS=1 node scripts/postinstall-bundled-plugins.mjs && \
-    node -e "const fs=require('fs'),path=require('path');const extDir='/app/dist/extensions';const root='/app/node_modules';for(const plugin of fs.readdirSync(extDir)){const pDir=path.join(extDir,plugin);const pkgPath=path.join(pDir,'package.json');if(!fs.existsSync(pkgPath))continue;const pkg=JSON.parse(fs.readFileSync(pkgPath,'utf8'));const deps={...(pkg.dependencies||{}),...(pkg.optionalDependencies||{})};if(Object.keys(deps).length===0)continue;const nm=path.join(pDir,'node_modules');fs.mkdirSync(nm,{recursive:true});for(const dep of Object.keys(deps)){const src=path.join(root,dep);const dest=path.join(nm,dep);if(fs.existsSync(src)&&!fs.existsSync(dest)){try{fs.mkdirSync(path.dirname(dest),{recursive:true});fs.cpSync(src,dest,{recursive:true,force:false});}catch(e){}}}}" && \
     find dist -type f \( -name '*.d.ts' -o -name '*.d.mts' -o -name '*.d.cts' -o -name '*.map' \) -delete
 
 # ── Runtime base images ─────────────────────────────────────────
@@ -273,6 +271,32 @@ RUN mkdir -p /seed/scripts
 # .git is also required because isSourceCheckoutRoot checks for .git OR
 # pnpm-workspace.yaml along with src/ and extensions/.
 RUN mkdir -p /app/src && mkdir -p /app/.git
+
+# Symlink each bundled plugin's runtime dependencies from the root node_modules
+# into dist/extensions/<plugin>/node_modules so the runtime sentinel check
+# (hasDependencySentinel) finds them without triggering npm install on boot.
+RUN node -e "\
+const fs = require('fs'); \
+const path = require('path'); \
+const extDir = '/app/dist/extensions'; \
+for (const plugin of fs.readdirSync(extDir)) { \
+  const pluginDir = path.join(extDir, plugin); \
+  const pkgPath = path.join(pluginDir, 'package.json'); \
+  if (!fs.existsSync(pkgPath)) continue; \
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); \
+  const deps = { ...(pkg.dependencies || {}), ...(pkg.optionalDependencies || {}) }; \
+  if (Object.keys(deps).length === 0) continue; \
+  const nodeModulesDir = path.join(pluginDir, 'node_modules'); \
+  fs.mkdirSync(nodeModulesDir, { recursive: true }); \
+  for (const dep of Object.keys(deps)) { \
+    const src = path.join('/app/node_modules', dep); \
+    const dest = path.join(nodeModulesDir, dep); \
+    if (fs.existsSync(src) && !fs.existsSync(dest)) { \
+      try { fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.symlinkSync(src, dest); } catch (e) {} \
+    } \
+  } \
+}\
+"
 
 # Security hardening: Run as non-root user
 # The node:24-bookworm image includes a 'node' user (uid 1000)
