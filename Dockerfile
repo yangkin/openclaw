@@ -122,7 +122,7 @@ RUN printf 'packages:\n  - .\n  - ui\n  - extensions/*\n' > /tmp/pnpm-workspace.
     done && \
     cp /tmp/pnpm-workspace.runtime.yaml pnpm-workspace.yaml && \
     CI=true NPM_CONFIG_FROZEN_LOCKFILE=false pnpm prune --prod && \
-    node scripts/postinstall-bundled-plugins.mjs && \
+    OPENCLAW_EAGER_BUNDLED_PLUGIN_DEPS=1 node scripts/postinstall-bundled-plugins.mjs && \
     find dist -type f \( -name '*.d.ts' -o -name '*.d.mts' -o -name '*.d.cts' -o -name '*.map' \) -delete
 
 # ── Runtime base images ─────────────────────────────────────────
