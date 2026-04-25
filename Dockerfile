@@ -273,6 +273,32 @@ RUN mkdir -p /seed/scripts
 # pnpm-workspace.yaml along with src/ and extensions/.
 RUN mkdir -p /app/src && mkdir -p /app/.git
 
+# Symlink each bundled plugin's runtime dependencies from the root node_modules
+# into dist/extensions/<plugin>/node_modules so the runtime sentinel check
+# (hasDependencySentinel) finds them without triggering npm install on boot.
+RUN node -e "\
+const fs = require('fs'); \
+const path = require('path'); \
+const extDir = '/app/dist/extensions'; \
+for (const plugin of fs.readdirSync(extDir)) { \
+  const pluginDir = path.join(extDir, plugin); \
+  const pkgPath = path.join(pluginDir, 'package.json'); \
+  if (!fs.existsSync(pkgPath)) continue; \
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); \
+  const deps = { ...(pkg.dependencies || {}), ...(pkg.optionalDependencies || {}) }; \
+  if (Object.keys(deps).length === 0) continue; \
+  const nodeModulesDir = path.join(pluginDir, 'node_modules'); \
+  fs.mkdirSync(nodeModulesDir, { recursive: true }); \
+  for (const dep of Object.keys(deps)) { \
+    const src = path.join('/app/node_modules', dep); \
+    const dest = path.join(nodeModulesDir, dep); \
+    if (fs.existsSync(src) && !fs.existsSync(dest)) { \
+      try { fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.symlinkSync(src, dest); } catch (e) {} \
+    } \
+  } \
+}\
+"
+
 # Security hardening: Run as non-root user
 # The node:24-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
